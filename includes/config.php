@@ -100,3 +100,6 @@ defined('AI_CHAT_MODEL') || define('AI_CHAT_MODEL', cfg_env('AI_CHAT_MODEL', OLL
 
 // ===================== AI / NLP (Java CoreNLP Server) =====================
 defined('CORENLP_URL') || define('CORENLP_URL', 'http://localhost:9000');
+
+// ===================== Session idle timeout (seconds) =====================
+defined('SESSION_IDLE_TIMEOUT') || define('SESSION_IDLE_TIMEOUT', 1800); // 30 minutes

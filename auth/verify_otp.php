@@ -23,7 +23,7 @@ $pdo = db('auth');
 $error = '';
 $message = '';
 $issuedAt = (int)($pending['issued_at'] ?? time());
-$remainingSeconds = max(0, 600 - (time() - $issuedAt));
+$remainingSeconds = max(0, 60 - (time() - $issuedAt));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string)($_POST['action'] ?? 'verify'));
@@ -65,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'vendor_status' => (string)($pending['vendor_status'] ?? ''),
                 ];
                 unset($_SESSION['otp_pending']);
+                $_SESSION['last_activity'] = time();
                 header('Location: ' . rtrim(BASE_URL, '/') . '/login.php');
                 exit;
             }
@@ -206,11 +207,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <p>Secure sign-in confirmation</p>
     </div>
     <div class="body">
-      <p>Enter the 6-digit code sent to your email. The code is valid for 10 minutes.</p>
+      <p>Enter the 6-digit code sent to your email. The code is valid for 1 minute.</p>
       <div class="email">Email: <?= htmlspecialchars((string)$pending['email']) ?></div>
       <div class="meta">
         <span>One-time code</span>
-        <span class="timer">Expires in <span id="otpTimer">10:00</span></span>
+        <span class="timer">Expires in <span id="otpTimer">01:00</span></span>
       </div>
 
       <?php if ($message !== ''): ?><div class="msg"><?= htmlspecialchars($message) ?></div><?php endif; ?>

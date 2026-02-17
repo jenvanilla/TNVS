@@ -48,7 +48,7 @@
       <?php
         $warehousingChildren = ['inventory','stock','shipments','warehouse_categories'];
         $procurementChildren = ['vm_suppliers','po_rfq','po_quotes','po_pos'];
-        $almsChildren        = ['assettracker','requests','repair'];
+        $almsChildren        = ['assettracker','requests','repair','dropoff_reports'];
         $docsChildren        = ['documents','logistics'];
 
         $isWarehousingOpen = a_any($warehousingChildren);
@@ -137,6 +137,9 @@
           </a>
           <a class="nav-link<?= a('repair') ?>" href="<?= u('assetlifecycle/repair.php') ?>">
             <ion-icon name="hammer-outline"></ion-icon><span>Repair Logs</span>
+          </a>
+          <a class="nav-link<?= a('dropoff_reports') ?>" href="<?= u('assetlifecycle/dropoffReports.php') ?>">
+            <ion-icon name="location-outline"></ion-icon><span>Drop-off Reports</span>
           </a>
         </nav>
       </div>
@@ -345,6 +348,9 @@
         </a>
         <a class="nav-link<?= a('reports') ?>" href="<?= u('assetlifecycle/reports.php') ?>">
           <ion-icon name="file-tray-stacked-outline"></ion-icon><span>Reports</span>
+        </a>
+        <a class="nav-link<?= a('dropoff_reports') ?>" href="<?= u('assetlifecycle/dropoffReports.php') ?>">
+          <ion-icon name="location-outline"></ion-icon><span>Drop-off Reports</span>
         </a>
       </nav>
       <div class="logout-section">

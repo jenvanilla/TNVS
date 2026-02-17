@@ -9,6 +9,23 @@ if (!defined('BASE_URL')) {
     if (is_file($cfg)) require_once $cfg;
 }
 
+// ---- Session idle-timeout check ----
+if (!empty($_SESSION['user']) && !empty($_SESSION['last_activity'])) {
+    $idle = time() - (int)$_SESSION['last_activity'];
+    $limit = defined('SESSION_IDLE_TIMEOUT') ? SESSION_IDLE_TIMEOUT : 1800;
+    if ($idle > $limit) {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $p = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+        }
+        session_destroy();
+        header('Location: ' . rtrim(BASE_URL, '/') . '/login.php?err=idle');
+        exit;
+    }
+    $_SESSION['last_activity'] = time();
+}
+
 function current_user() {
     return $_SESSION['user'] ?? null;
 }

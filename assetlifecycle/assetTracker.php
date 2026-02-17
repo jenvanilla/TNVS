@@ -62,7 +62,11 @@ foreach ([
   "gps_imei VARCHAR(32)",
   "notes TEXT",
   "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
-  "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+  "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+  "dropoff_location VARCHAR(255)",
+  "assigned_personnel VARCHAR(255)",
+  "dropoff_status VARCHAR(50) DEFAULT 'pending'",
+  "dropoff_date DATETIME"
 ] as $def) { safe_add_column($pdo, 'assets', $def); }
 
 // Seed default purchased vehicles once (no duplicates).
@@ -137,9 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $route           = trim($_POST['route'] ?? '');
     $depot           = trim($_POST['depot'] ?? '');
     $status          = $_POST['status'] ?: 'Registered';
-    $deployment_date = $_POST['deployment_date'] ?: null;
-    $gps_imei        = trim($_POST['gps_imei'] ?? '');
-    $notes           = trim($_POST['notes'] ?? '');
+    $deployment_date     = $_POST['deployment_date'] ?: null;
+    $gps_imei            = trim($_POST['gps_imei'] ?? '');
+    $notes               = trim($_POST['notes'] ?? '');
+    $dropoff_location    = trim($_POST['dropoff_location'] ?? '');
+    $assigned_personnel  = trim($_POST['assigned_personnel'] ?? '');
+    $dropoff_status      = $_POST['dropoff_status'] ?? 'pending';
+    $dropoff_date        = $_POST['dropoff_date'] ?: null;
 
     if ($name === '') {
       header('Location: '.$_SERVER['PHP_SELF'].'?err='.urlencode('Name is required')); exit;
@@ -148,9 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
       $stmt = $pdo->prepare(
         "INSERT INTO assets
-         (name, unique_id, asset_type, manufacturer, model, purchase_date, purchase_cost, department, driver, route, depot, status, deployment_date, installed_on, gps_imei, notes)
+         (name, unique_id, asset_type, manufacturer, model, purchase_date, purchase_cost, department, driver, route, depot, status, deployment_date, installed_on, gps_imei, notes, dropoff_location, assigned_personnel, dropoff_status, dropoff_date)
          VALUES
-         (:name,:unique_id,:asset_type,:manufacturer,:model,:purchase_date,:purchase_cost,:department,:driver,:route,:depot,:status,:deployment_date,:installed_on,:gps_imei,:notes)"
+         (:name,:unique_id,:asset_type,:manufacturer,:model,:purchase_date,:purchase_cost,:department,:driver,:route,:depot,:status,:deployment_date,:installed_on,:gps_imei,:notes,:dropoff_location,:assigned_personnel,:dropoff_status,:dropoff_date)"
       );
       $stmt->execute([
         ':name'=>$name,
@@ -169,6 +177,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':installed_on'=>$deployment_date ?: null,
         ':gps_imei'=>$gps_imei ?: null,
         ':notes'=>$notes ?: null,
+        ':dropoff_location'=>$dropoff_location ?: null,
+        ':assigned_personnel'=>$assigned_personnel ?: null,
+        ':dropoff_status'=>$dropoff_status ?: 'pending',
+        ':dropoff_date'=>$dropoff_date ?: null,
       ]);
       $newId = (int)$pdo->lastInsertId();
       header('Location: '.$_SERVER['PHP_SELF'].'?highlight_id='.$newId); exit;
@@ -196,16 +208,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $depot           = trim($_POST['depot'] ?? '');
       $status          = $_POST['status'] ?? 'Registered';
       $deployment_date = $_POST['deployment_date'] ?? null;
-      $retired_on      = $_POST['retired_on'] ?? null;
-      $gps_imei        = trim($_POST['gps_imei'] ?? '');
-      $notes           = trim($_POST['notes'] ?? '');
+      $retired_on          = $_POST['retired_on'] ?? null;
+      $gps_imei            = trim($_POST['gps_imei'] ?? '');
+      $notes               = trim($_POST['notes'] ?? '');
+      $dropoff_location    = trim($_POST['dropoff_location'] ?? '');
+      $assigned_personnel  = trim($_POST['assigned_personnel'] ?? '');
+      $dropoff_status      = $_POST['dropoff_status'] ?? 'pending';
+      $dropoff_date        = $_POST['dropoff_date'] ?: null;
 
       $stmt = $pdo->prepare(
         "UPDATE assets SET
           name=:name, unique_id=:unique_id, asset_type=:asset_type, manufacturer=:manufacturer, model=:model,
           purchase_date=:purchase_date, purchase_cost=:purchase_cost, department=:department, driver=:driver,
           route=:route, depot=:depot, status=:status, deployment_date=:deployment_date, installed_on=:installed_on,
-          retired_on=:retired_on, disposed_on=:disposed_on, gps_imei=:gps_imei, notes=:notes
+          retired_on=:retired_on, disposed_on=:disposed_on, gps_imei=:gps_imei, notes=:notes,
+          dropoff_location=:dropoff_location, assigned_personnel=:assigned_personnel, dropoff_status=:dropoff_status, dropoff_date=:dropoff_date
          WHERE id=:id"
       );
       $stmt->execute([
@@ -228,6 +245,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':disposed_on'=>$retired_on ?: null,
         ':gps_imei'=>$gps_imei ?: null,
         ':notes'=>$notes ?: null,
+        ':dropoff_location'=>$dropoff_location ?: null,
+        ':assigned_personnel'=>$assigned_personnel ?: null,
+        ':dropoff_status'=>$dropoff_status ?: 'pending',
+        ':dropoff_date'=>$dropoff_date ?: null,
       ]);
       header('Location: '.$_SERVER['PHP_SELF'].'?highlight_id='.$id); exit;
     }
@@ -277,8 +298,8 @@ if (($_GET['action'] ?? '') === 'export') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename=assets_'.date('Ymd_His').'.csv');
   $out=fopen('php://output','w');
-  fputcsv($out, ['id','name','unique_id','asset_type','manufacturer','model','purchase_date','purchase_cost','department','driver','route','depot','status','deployment_date','retired_on','gps_imei','notes','created_at']);
-  $stmt = $pdo->prepare("SELECT id,name,unique_id,asset_type,manufacturer,model,purchase_date,purchase_cost,department,driver,route,depot,status,deployment_date,retired_on,gps_imei,notes,created_at FROM assets $w ORDER BY id DESC");
+  fputcsv($out, ['id','name','unique_id','asset_type','manufacturer','model','purchase_date','purchase_cost','department','driver','route','depot','status','deployment_date','retired_on','gps_imei','notes','dropoff_location','assigned_personnel','dropoff_status','dropoff_date','created_at']);
+  $stmt = $pdo->prepare("SELECT id,name,unique_id,asset_type,manufacturer,model,purchase_date,purchase_cost,department,driver,route,depot,status,deployment_date,retired_on,gps_imei,notes,dropoff_location,assigned_personnel,dropoff_status,dropoff_date,created_at FROM assets $w ORDER BY id DESC");
   $stmt->execute($params);
   while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) { fputcsv($out, $r); }
   fclose($out); exit;
@@ -642,7 +663,11 @@ $userRole = $_SESSION["user"]["role"] ?? "Warehouse Manager";
                                     data-deployment_date="<?= h($a['deployment_date']) ?>"
                                     data-retired_on="<?= h($a['retired_on']) ?>"
                                     data-gps_imei="<?= h($a['gps_imei']) ?>"
-                                    data-notes="<?= h($a['notes']) ?>">
+                                    data-notes="<?= h($a['notes']) ?>"
+                                    data-dropoff_location="<?= h($a['dropoff_location'] ?? '') ?>"
+                                    data-assigned_personnel="<?= h($a['assigned_personnel'] ?? '') ?>"
+                                    data-dropoff_status="<?= h($a['dropoff_status'] ?? '') ?>"
+                                    data-dropoff_date="<?= h($a['dropoff_date'] ?? '') ?>">
                               <ion-icon name="create-outline"></ion-icon> Edit
                             </button>
                             <a class="btn btn-sm btn-outline-secondary" href="repair.php">
@@ -716,6 +741,18 @@ $userRole = $_SESSION["user"]["role"] ?? "Warehouse Manager";
               </div>
               <div class="col-6 col-md-3"><input class="form-control" type="date" name="deployment_date" title="Deployment date"></div>
               <div class="col-6 col-md-3"><input class="form-control" name="gps_imei" placeholder="GPS IMEI"></div>
+              <div class="col-12 mt-2"><h6 class="text-muted small text-uppercase">Drop-off Information</h6></div>
+              <div class="col-6 col-md-3"><input class="form-control" name="dropoff_location" placeholder="Drop-off Location"></div>
+              <div class="col-6 col-md-3"><input class="form-control" name="assigned_personnel" placeholder="Assigned Personnel"></div>
+              <div class="col-6 col-md-3">
+                <select class="form-select" name="dropoff_status">
+                  <option value="pending">Pending</option>
+                  <option value="in_transit">In Transit</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="confirmed">Confirmed</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3"><input class="form-control" type="datetime-local" name="dropoff_date" title="Drop-off Date"></div>
               <div class="col-12"><input class="form-control" name="notes" placeholder="Notes"></div>
             </div>
           </div>
@@ -770,6 +807,18 @@ $userRole = $_SESSION["user"]["role"] ?? "Warehouse Manager";
               <div class="col-6 col-md-3"><input class="form-control" type="date" name="deployment_date" id="e_deployment_date" title="Deployment date"></div>
               <div class="col-6 col-md-3"><input class="form-control" type="date" name="retired_on" id="e_retired_on" title="Retired on"></div>
               <div class="col-6 col-md-3"><input class="form-control" name="gps_imei" id="e_gps_imei" placeholder="GPS IMEI"></div>
+              <div class="col-12 mt-2"><h6 class="text-muted small text-uppercase">Drop-off Information</h6></div>
+              <div class="col-6 col-md-3"><input class="form-control" name="dropoff_location" id="e_dropoff_location" placeholder="Drop-off Location"></div>
+              <div class="col-6 col-md-3"><input class="form-control" name="assigned_personnel" id="e_assigned_personnel" placeholder="Assigned Personnel"></div>
+              <div class="col-6 col-md-3">
+                <select class="form-select" name="dropoff_status" id="e_dropoff_status">
+                  <option value="pending">Pending</option>
+                  <option value="in_transit">In Transit</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="confirmed">Confirmed</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3"><input class="form-control" type="datetime-local" name="dropoff_date" id="e_dropoff_date" title="Drop-off Date"></div>
               <div class="col-12"><input class="form-control" name="notes" id="e_notes" placeholder="Notes"></div>
             </div>
           </div>
@@ -824,6 +873,10 @@ $userRole = $_SESSION["user"]["role"] ?? "Warehouse Manager";
         setVal('e_retired_on', d.retired_on);
         setVal('e_gps_imei', d.gps_imei);
         setVal('e_notes', d.notes);
+        setVal('e_dropoff_location', d.dropoff_location);
+        setVal('e_assigned_personnel', d.assigned_personnel);
+        setVal('e_dropoff_status', d.dropoff_status);
+        setVal('e_dropoff_date', d.dropoff_date);
         editModal.show();
       });
     });

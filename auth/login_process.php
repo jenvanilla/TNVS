@@ -92,6 +92,7 @@ $_SESSION['user'] = [
     'vendor_id'     => isset($user['vendor_id']) ? (int)$user['vendor_id'] : null,
     'vendor_status' => (string)($user['vendor_status'] ?? ''),
 ];
+$_SESSION['last_activity'] = time();
 
 header('Location: ' . rtrim(BASE_URL,'/') . '/login.php');
 exit;
