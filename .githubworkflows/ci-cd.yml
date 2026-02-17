@@ -1,0 +1,162 @@
+name: CI → Test → Build → Deploy
+
+on:
+  push:
+    branches: [ "staging", "main" ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- PHP setup + Composer ----------
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer, phpunit
+
+      - name: Install Composer deps (prod for main, dev for staging)
+        run: |
+          if [ -f composer.json ]; then
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              composer install --no-dev --no-interaction --no-progress --prefer-dist
+            else
+              composer install --no-interaction --no-progress --prefer-dist
+            fi
+          else
+            echo "No composer.json, skipping composer."
+          fi
+
+      # ---------- PHP lint ----------
+      - name: PHP syntax check
+        run: |
+          mapfile -t FILES < <(find . -type f -name "*.php")
+          if [ ${#FILES[@]} -gt 0 ]; then
+            for f in "${FILES[@]}"; do php -l "$f"; done
+          else
+            echo "No PHP files found to lint."
+          fi
+
+      # ---------- PHPUnit (only if configured) ----------
+      - name: Run PHPUnit (if phpunit.xml exists)
+        run: |
+          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ]; then
+            vendor/bin/phpunit --colors=always
+          else
+            echo "No phpunit config, skipping tests."
+          fi
+
+      # ---------- Node build (optional) ----------
+      - name: Setup Node (only if package.json exists)
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Node deps
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm ci || npm install
+
+      - name: Build front-end
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if npm run | grep -q " build"; then
+            npm run build
+          else
+            echo "No npm build script, skipping."
+          fi
+
+      # ---------- Package artifact (robust tar; keeps vendor/ & built assets) ----------
+      - name: Archive build artifact
+        run: |
+          tar --warning=no-file-changed --ignore-failed-read -czf site.tar.gz \
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='./node_modules' \
+            --exclude='./tests' \
+            --exclude='./README.md' \
+            --exclude='./composer.lock' \
+            --exclude='./package*.json' \
+            --exclude='./site.tar.gz' \
+            .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site.tar.gz
+          retention-days: 7
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    if: ${{ success() }}
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+
+      - name: Extract
+        run: tar -xzf site.tar.gz
+
+      # ---------- Generate mail_config.php from GitHub Secrets ----------
+      - name: Generate mail_config.php
+        run: |
+          mkdir -p includes
+          cat > includes/mail_config.php << 'EOF'
+          <?php
+          define('SMTP_HOST', '${{ secrets.SMTP_HOST }}');
+          define('SMTP_USER', '${{ secrets.SMTP_USER }}');
+          define('SMTP_PASS', '${{ secrets.SMTP_PASS }}');
+          define('SMTP_PORT', 587);
+          define('SMTP_SECURE', 'tls');
+          
+          define('MAIL_FROM', '${{ secrets.MAIL_FROM }}');
+          define('MAIL_FROM_NAME', '${{ secrets.MAIL_FROM_NAME }}');
+          EOF
+
+      # IMPORTANT: your FTP user is chrooted at /home/logistics1.viahale.com
+      # so use RELATIVE paths here.
+      - name: Set target directory
+        id: paths
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "dir=/public_html/" >> $GITHUB_OUTPUT
+          else
+            echo "dir=/staging/" >> $GITHUB_OUTPUT
+          fi
+          echo "server-dir=$(cat $GITHUB_OUTPUT)"
+
+      - name: Deploy via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server:   ${{ secrets.FTP_SERVER }}        # e.g. 23.94.230.146
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port:     21
+          protocol: ftps
+          security: loose
+          timeout: 60000
+          local-dir: ./                              # extracted archive contents
+          server-dir: ${{ steps.paths.outputs.dir }} # main → /public_html/, staging → /staging/
+          dangerous-clean-slate: false               # set to true once if you need a full wipe
+          exclude: |
+            **/.git**
+            **/.github/**
+            **/node_modules/**
+            **/tests/**
+            .env
+            README.md
+            composer.lock
+            package*.json
