@@ -181,7 +181,7 @@ if ($errRaw !== '') {
 
   <div class="wrap">
     <h1 class="title-xl">Welcome to Viahale!</h1>
-    <p class="subtitle">Please enter your credentials to access the dashboard.</p>
+    <p class="subtitle">Please enter your credentials.</p>
 
     <div class="login-card">
       <?php if ($vhNotice): ?>
